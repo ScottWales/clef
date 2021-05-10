@@ -18,10 +18,13 @@ import argparse
 import intake
 import pandas
 import typing as T
+from . import esgf
 
 
 class Cmip6():
     name = 'cmip6'
+    esgf_project = 'CMIP6'
+    intake_cat = name
     facets = {
         'activity_id': {},
         'source_id': {},
@@ -60,7 +63,7 @@ class Cmip6():
         return parser
 
 
-    def catalogue(self, facets: T.Dict[str, T.List[str]], filter: str='all'):
+    def catalogue(self, *, filter: str='all', **facets: T.Dict[str, T.List[str]]):
         """
         Create a dataframe with the search results
 
@@ -98,13 +101,33 @@ class Cmip6():
             raise Exception # Shouldn't reach here
 
 
-    def local_catalogue(self, facets: T.Dict[str, T.List[str]]):
-        pass
+    def local_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+        self._check_facets(facets)
+
+        cat = intake.cat['nci']['esgf'][self.intake_cat].search(**facets)
+
+        df = cat.df[[*self.facets.keys(), 'path']]
+
+        index = df.apply(lambda r: '.'.join(r[cat.groupby_attrs]), axis=1)
+
+        return df.set_index(index)
 
 
-    def remote_catalogue(self, facets: T.Dict[str, T.List[str]]):
-        pass
+    def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+        self._check_facets(facets)
+
+        results = esgf.esgf_api_results_iter(project=self.esgf_project, fields=['instance_id', *self.facets.keys()], **facets)
+
+        df = pandas.DataFrame.from_records(results)
+
+        return df.set_index('instance_id')
     
 
     def get_facet_values(self):
         pass
+
+
+    def _check_facets(self, facets):
+        diff_names = set(facets.keys()) - set(self.facets.keys())
+        if len(diff_names) > 0:
+            raise Exception(f"Invalid facet names {diff_names}")
