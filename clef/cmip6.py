@@ -16,6 +16,8 @@
 
 import argparse
 import intake
+import pandas
+import typing as T
 
 
 class Cmip6():
@@ -84,14 +86,24 @@ class Cmip6():
             return local_results
         elif filter == 'remote':
             return remote_results
-        elif filter == 'missing':
-            return remote_results.join(local_results)
+
+        missing_idx = remote_results.index.difference(local_results.index)
+        missing_results = remote_results.loc[missing_idx]
+
+        if filter == 'missing':
+            return missing_results
         elif filter == 'all':
-            return remote_results.join(local_results)
+            return pandas.concat([local_results, missing_results])
         else:
             raise Exception # Shouldn't reach here
 
 
+    def local_catalogue(self, facets: T.Dict[str, T.List[str]]):
+        pass
+
+
+    def remote_catalogue(self, facets: T.Dict[str, T.List[str]]):
+        pass
     
 
     def get_facet_values(self):

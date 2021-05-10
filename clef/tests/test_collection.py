@@ -16,6 +16,8 @@
 
 
 import clef.cmip6
+import pandas
+from unittest.mock import patch
 
 
 def test_catalogue_filter():
