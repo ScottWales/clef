@@ -16,27 +16,30 @@
 
 import argparse
 import logging
-#from . import cmip6
-import cmip6
+import sys
+
+from . import collection
 
 
-def main():
+def main(argv=sys.argv):
     logging.basicConfig()
-    log = logging.getLogger('clef')
+    log = logging.getLogger("clef")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--debug', help='show debugging logs', action='store_true')
+    parser.add_argument("--debug", help="show debugging logs", action="store_true")
 
     subp = parser.add_subparsers()
 
-    cmip6.Cmip6().setup_subparser(subp)
+    collection.Cmip6().setup_subparser(subp)
 
-
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.debug:
         log.setLevel(logging.DEBUG)
 
+    if args.main is not None:
+        args.main(args)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

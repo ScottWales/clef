@@ -14,35 +14,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import argparse
 import intake
 import pandas
 import typing as T
 import os
+import difflib
+import logging
 from . import esgf
 
+log = logging.getLogger(__name__)
 
-class Cmip6:
-    name = "cmip6"
-    esgf_project = "CMIP6"
-    intake_cat = name
-    facets = {
-        "activity_id": {},
-        "source_id": {},
-        "institution_id": {},
-        "experiment_id": {},
-        "member_id": {},
-        "table_id": {},
-        "frequency": {},
-        "realm": {},
-        "variable_id": {},
-    }
 
+class Collection:
     def __init__(self):
         pass
 
     def setup_subparser(self, subp):
+        """
+        Setup CLI
+        """
         parser = subp.add_parser(self.name)
+        parser.set_defaults(main=self.cli)
 
         parser.add_argument(
             "--filter",
@@ -58,36 +50,12 @@ class Cmip6:
         parser.add_argument(
             "--csv",
             nargs="?",
-            type=argparse.FileType("w"),
             default=f"{self.name}_query.csv",
             metavar="FILE",
             help="store output in a csv file",
         )
         parser.add_argument(
             "--stats", action="store_true", help="print a summary of results"
-        )
-
-        # Old filter names
-        parser.add_argument(
-            "--local",
-            dest="filter",
-            action="store_const",
-            const="local",
-            help="see --filter local",
-        )
-        parser.add_argument(
-            "--remote",
-            dest="filter",
-            action="store_const",
-            const="remote",
-            help="see --filter remote",
-        )
-        parser.add_argument(
-            "--missing",
-            dest="filter",
-            action="store_const",
-            const="missing",
-            help="see --filter missing",
         )
 
         facets = parser.add_argument_group("esgf search facets")
@@ -97,9 +65,32 @@ class Cmip6:
 
         return parser
 
+    def cli(self, args):
+        """
+        Run the CLI command
+        """
+        facets = {
+            k: v
+            for k, v in vars(args).items()
+            if k in self.facets.keys() and v is not None
+        }
+
+        cat = self.catalogue(filter=args.filter, **facets)
+
+        if args.csv is not None:
+            cat.to_csv(args.csv)
+
+        if args.stats:
+            self.print_stats(cat)
+        else:
+            self.print_results(cat)
+
+        if args.request:
+            self.request_download(cat)
+
     def catalogue(self, *, filter: str = "all", **facets: T.Dict[str, T.List[str]]):
         """
-        Create a dataframe with the search results
+        Create a dataframe with filtered search results
 
         Args:
             facets: ESGF search facets
@@ -112,6 +103,9 @@ class Cmip6:
         """
         if filter not in ["local", "remote", "missing", "all"]:
             raise NotImplementedError(f"Bad filter name '{filter}'")
+
+        local_results = None
+        remote_results = None
 
         if filter != "remote":
             local_results = self.local_catalogue(**facets)
@@ -135,6 +129,15 @@ class Cmip6:
             raise Exception  # Shouldn't reach here
 
     def local_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+        """
+        Create a dataframe with local search results
+
+        Args:
+            facets: ESGF search facets
+
+        Returns:
+            DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
+        """
         self._check_facets(facets)
 
         cat = intake.cat["nci"]["esgf"][self.intake_cat].search(**facets)
@@ -147,6 +150,15 @@ class Cmip6:
         return df.set_index(index)
 
     def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+        """
+        Create a dataframe with remote search results
+
+        Args:
+            facets: ESGF search facets
+
+        Returns:
+            DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
+        """
         self._check_facets(facets)
 
         results = esgf.esgf_api_results_iter(
@@ -156,13 +168,70 @@ class Cmip6:
         )
 
         df = pandas.DataFrame.from_records(results)
+        df["path"] = None
 
         return df.set_index("instance_id")
 
-    def get_facet_values(self):
+    def print_stats(self, cat):
+        """
+        Print a summary of results
+        """
         pass
 
-    def _check_facets(self, facets):
+    def print_results(self, cat):
+        """
+        Print search results
+        """
+        for key, row in cat.iterrows():
+            if row["path"] is not None:
+                print(row["path"])
+            else:
+                print(key)
+
+    def _get_facet_values(self):
+        return {k: [] for k in self.facets.keys()}
+
+    def _check_facets(self, facets: T.Dict[str, T.List[str]]):
+        """
+        Check the given facet values match possible values on ESGF
+
+        If a value is not possible, print some suggestions
+        """
         diff_names = set(facets.keys()) - set(self.facets.keys())
         if len(diff_names) > 0:
             raise Exception(f"Invalid facet names {diff_names}")
+
+        possible_values = self._get_facet_values()
+        for k, values in facets.items():
+            for v in values:
+                if v not in possible_values[k]:
+                    nearest = difflib.get_close_matches(
+                        v.upper(), possible_values[k], cutoff=0.6
+                    )
+                    log.warn(
+                        "No %s %s named %s, close matches %s",
+                        self.esgf_project,
+                        k,
+                        v,
+                        nearest,
+                    )
+
+
+class Cmip6(Collection):
+    name = "cmip6"
+    esgf_project = "CMIP6"
+    intake_cat = name
+    facets = {
+        "activity_id": {},
+        "source_id": {},
+        "institution_id": {},
+        "experiment_id": {},
+        "member_id": {},
+        "table_id": {},
+        "frequency": {},
+        "realm": {},
+        "variable_id": {},
+    }
+
+    def __init__(self):
+        super().__init__()
