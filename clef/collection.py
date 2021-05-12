@@ -88,7 +88,9 @@ class Collection:
         if args.request:
             self.request_download(cat)
 
-    def catalogue(self, *, filter: str = "all", **facets: T.Dict[str, T.List[str]]):
+    def catalogue(
+        self, *, filter: str = "all", **facets: T.Dict[str, T.List[str]]
+    ) -> pandas.DataFrame:
         """
         Create a dataframe with filtered search results
 
@@ -128,7 +130,7 @@ class Collection:
         else:
             raise Exception  # Shouldn't reach here
 
-    def local_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+    def local_catalogue(self, **facets: T.Dict[str, T.List[str]]) -> pandas.DataFrame:
         """
         Create a dataframe with local search results
 
@@ -149,7 +151,7 @@ class Collection:
 
         return df.set_index(index)
 
-    def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+    def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]) -> pandas.DataFrame:
         """
         Create a dataframe with remote search results
 
@@ -161,10 +163,12 @@ class Collection:
         """
         self._check_facets(facets)
 
-        results = esgf.esgf_api_results_iter(
-            project=self.esgf_project,
-            fields=["instance_id", *self.facets.keys()],
-            **facets,
+        results = list(
+            esgf.esgf_api_results_iter(
+                project=self.esgf_project,
+                fields=["instance_id", *self.facets.keys()],
+                **facets,
+            )
         )
 
         df = pandas.DataFrame.from_records(results)
@@ -172,13 +176,13 @@ class Collection:
 
         return df.set_index("instance_id")
 
-    def print_stats(self, cat):
+    def print_stats(self, cat: pandas.DataFrame):
         """
         Print a summary of results
         """
         pass
 
-    def print_results(self, cat):
+    def print_results(self, cat: pandas.DataFrame):
         """
         Print search results
         """
@@ -203,12 +207,16 @@ class Collection:
 
         possible_values = self._get_facet_values()
         for k, values in facets.items():
+            # Ensure values is a list
+            if isinstance(values, str):
+                values = [values]
+
             for v in values:
                 if v not in possible_values[k]:
                     nearest = difflib.get_close_matches(
                         v.upper(), possible_values[k], cutoff=0.6
                     )
-                    log.warn(
+                    log.warning(
                         "No %s %s named %s, close matches %s",
                         self.esgf_project,
                         k,
@@ -235,3 +243,50 @@ class Cmip6(Collection):
 
     def __init__(self):
         super().__init__()
+
+
+class Cmip5(Collection):
+    name = "cmip5"
+    esgf_project = "CMIP5"
+    intake_cat = name
+    facets = {
+        "institute": {},
+        "model": {},
+        "experiment": {},
+        "ensemble": {},
+        "cmor_table": {},
+        "time_frequency": {},
+        "realm": {},
+        "variable": {},
+    }
+
+    def __init__(self):
+        super().__init__()
+
+    def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+        """
+        Create a dataframe with remote search results
+
+        Args:
+            facets: ESGF search facets
+
+        Returns:
+            DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
+        """
+        df = super().remote_catalogue(**facets)
+
+        # CMIP5 doesn't include variable in instance_id, and returns all possible variables
+        # Convert the list of variables to rows
+        df = df.explode("variable")
+
+        # Add the variable name to instance_id
+        df.index = df.index + "." + df.variable
+
+        # Filter out variables to only the required values
+        if "variable" in facets:
+            v = facets["variable"]
+            if isinstance(v, str):
+                v = [v]
+            df = df[df.variable.isin(v)]
+
+        return df

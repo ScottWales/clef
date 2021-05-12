@@ -21,30 +21,41 @@ import logging
 log = logging.getLogger(__name__)
 
 
-def esgf_api(limit: int = 100, offset: int = 0, facets: T.List[str] = None, fields: T.List[str] = None, replica=False, **kwargs):
+def esgf_api(
+    limit: int = 100,
+    offset: int = 0,
+    facets: T.List[str] = None,
+    fields: T.List[str] = None,
+    replica=False,
+    **kwargs
+) -> T.Dict:
     """
     Perform a single ESGF API query
     """
-    params = {**kwargs, **{
-            'format': 'application/solr+json',
-            'limit': limit,
-            'offset': offset,
-            'replica': replica,
-        }}
+    params = {
+        **kwargs,
+        **{
+            "format": "application/solr+json",
+            "limit": limit,
+            "offset": offset,
+            "replica": replica,
+            "latest": True,
+        },
+    }
 
     if facets is not None:
-        params['facets'] = ','.join(facets)
+        params["facets"] = ",".join(facets)
     if fields is not None:
-        params['fields'] = ','.join(fields)
+        params["fields"] = ",".join(fields)
 
-    r = requests.get('https://esgf.nci.org.au/esg-search/search', params)
-    log.debug('GET %s',r.url)
+    r = requests.get("https://esgf.nci.org.au/esg-search/search", params)
+    log.debug("GET %s", r.url)
 
     r.raise_for_status()
     return r.json()
 
 
-def esgf_api_results_iter(**kwargs):
+def esgf_api_results_iter(**kwargs) -> T.List[T.Dict]:
     """
     Return a stream of results from a ESGF API query, automatically handling pagination
     """
@@ -52,12 +63,16 @@ def esgf_api_results_iter(**kwargs):
     offset = 0
 
     while True:
-        log.debug("Results %d - %d", offset, offset+limit)
+        log.debug("Results %d - %d", offset, offset + limit)
         r = esgf_api(limit=limit, offset=offset, **kwargs)
 
-        for d in r['response']['docs']:
-            yield {k: v[0] if isinstance(v, list) else v for k, v in d.items() if k != 'score'}
+        for d in r["response"]["docs"]:
+            yield {
+                k: v[0] if isinstance(v, list) and len(v) == 1 else v
+                for k, v in d.items()
+                if k != "score"
+            }
 
         offset += limit
-        if offset > r['response']['numFound']:
+        if offset > r["response"]["numFound"]:
             break

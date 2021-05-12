@@ -18,9 +18,6 @@
 import clef.collection
 import pandas
 from unittest.mock import patch
-import io
-import yaml
-import intake_esm
 
 
 def test_catalogue_filter():
@@ -45,7 +42,7 @@ def test_catalogue_filter():
         assert set(r.index.values) == {1, 2, 3}
 
 
-def test_remote_catalogue():
+def test_remote_catalogue_cmip6():
     col = clef.collection.Cmip6()
 
     cat = col.remote_catalogue(
@@ -64,6 +61,24 @@ def test_remote_catalogue():
     )
 
 
+def test_remote_catalogue_cmip5():
+    col = clef.collection.Cmip5()
+
+    cat = col.remote_catalogue(
+        experiment="historical",
+        model="ACCESS1.0",
+        time_frequency="mon",
+        variable="tas",
+        ensemble="r1i1p1",
+    )
+
+    assert len(cat) == 1
+    assert (
+        cat.index.values[0]
+        == "cmip5.output1.CSIRO-BOM.ACCESS1-0.historical.mon.atmos.Amon.r1i1p1.v20120727.tas"
+    )
+
+
 def test_local_catalogue(mock_cmip6):
 
     cat = mock_cmip6.local_catalogue(
@@ -74,8 +89,6 @@ def test_local_catalogue(mock_cmip6):
         variable_id="tas",
         member_id="r1i1p1f1",
     )
-
-    print(cat.columns)
 
     assert len(cat) == 1
     assert (
