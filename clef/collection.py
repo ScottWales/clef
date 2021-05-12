@@ -140,6 +140,7 @@ class Collection:
         Returns:
             DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
         """
+        log.info("Searching local catalogue")
         self._check_facets(facets)
 
         cat = intake.cat["nci"]["esgf"][self.intake_cat].search(**facets)
@@ -161,6 +162,7 @@ class Collection:
         Returns:
             DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
         """
+        log.info("Searching ESGF catalogue")
         self._check_facets(facets)
 
         results = list(
@@ -186,7 +188,7 @@ class Collection:
         """
         Print search results
         """
-        for key, row in cat.iterrows():
+        for key, row in cat.sort_index().iterrows():
             if row["path"] is not None:
                 print(row["path"])
             else:

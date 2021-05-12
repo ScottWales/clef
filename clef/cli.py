@@ -21,7 +21,7 @@ import sys
 from . import collection
 
 
-def main(argv=sys.argv):
+def main(argv=None):
     logging.basicConfig()
     log = logging.getLogger("clef")
 
@@ -31,6 +31,7 @@ def main(argv=sys.argv):
     subp = parser.add_subparsers()
 
     collection.Cmip6().setup_subparser(subp)
+    collection.Cmip5().setup_subparser(subp)
 
     args = parser.parse_args(argv)
 
