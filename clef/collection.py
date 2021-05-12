@@ -50,7 +50,7 @@ class Collection:
         parser.add_argument(
             "--csv",
             nargs="?",
-            default=f"{self.name}_query.csv",
+            const=f"{self.name}_query.csv",
             metavar="FILE",
             help="store output in a csv file",
         )
