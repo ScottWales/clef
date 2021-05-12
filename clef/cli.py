@@ -30,8 +30,9 @@ def main(argv=None):
 
     subp = parser.add_subparsers()
 
-    collection.Cmip6().setup_subparser(subp)
-    collection.Cmip5().setup_subparser(subp)
+    collection.Cmip6()._setup_subparser(subp)
+    collection.Cmip5()._setup_subparser(subp)
+    collection.Cordex()._setup_subparser(subp)
 
     args = parser.parse_args(argv)
 

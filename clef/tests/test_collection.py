@@ -79,6 +79,27 @@ def test_remote_catalogue_cmip5():
     )
 
 
+def test_remote_catalogue_cordex():
+    col = clef.collection.Cordex()
+
+    cat = col.remote_catalogue(
+        institute="UNSW",
+        experiment="historical",
+        ensemble="r1i1p1",
+        domain="AUS-44",
+        variable="tas",
+        rcm_name="WRF360L",
+        driving_model="CSIRO-BOM-ACCESS1-0",
+        time_frequency="mon",
+    )
+
+    assert len(cat) == 1
+    assert (
+        cat.index.values[0]
+        == "cordex.output.AUS-44.UNSW.CSIRO-BOM-ACCESS1-0.historical.r1i1p1.WRF360L.v1.mon.tas.v20180614"
+    )
+
+
 def test_local_catalogue(mock_cmip6):
 
     cat = mock_cmip6.local_catalogue(

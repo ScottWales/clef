@@ -20,21 +20,39 @@ import typing as T
 import os
 import difflib
 import logging
+import abc
 from . import esgf
 
 log = logging.getLogger(__name__)
 
 
-class Collection:
+class Collection(abc.ABC):
+    """
+    Common routines for Clef collections
+
+    Sets up search for both the ESGF and local intake catalogues. Subclasses use these functions to set up the search.
+
+    Most settings are automatically generated from the attributes of the subclass:
+        - esgf_project: ESGF web search project name
+        - intake_cat: Intake catalogue name (under intake.cat.nci.esgf)
+        - facets: Search facet metadata
+
+    For manual searching, see :meth:`catalogue` to get a pandas.DataFrame of search results
+    """
+
+    esgf_project: str
+    intake_cat: str
+    facets: T.Dict[str, T.Dict]
+
     def __init__(self):
         pass
 
-    def setup_subparser(self, subp):
+    def _setup_subparser(self, subp):
         """
         Setup CLI
         """
         parser = subp.add_parser(self.name)
-        parser.set_defaults(main=self.cli)
+        parser.set_defaults(main=self._cli)
 
         parser.add_argument(
             "--filter",
@@ -65,7 +83,7 @@ class Collection:
 
         return parser
 
-    def cli(self, args):
+    def _cli(self, args):
         """
         Run the CLI command
         """
@@ -89,7 +107,7 @@ class Collection:
             self.request_download(cat)
 
     def catalogue(
-        self, *, filter: str = "all", **facets: T.Dict[str, T.List[str]]
+        self, *, filter: str = "all", **facets: T.List[str]
     ) -> pandas.DataFrame:
         """
         Create a dataframe with filtered search results
@@ -106,19 +124,15 @@ class Collection:
         if filter not in ["local", "remote", "missing", "all"]:
             raise NotImplementedError(f"Bad filter name '{filter}'")
 
-        local_results = None
-        remote_results = None
-
         if filter != "remote":
             local_results = self.local_catalogue(**facets)
+            if filter == "local":
+                return local_results
 
         if filter != "local":
             remote_results = self.remote_catalogue(**facets)
-
-        if filter == "local":
-            return local_results
-        elif filter == "remote":
-            return remote_results
+            if filter == "remote":
+                return remote_results
 
         missing_idx = remote_results.index.difference(local_results.index)
         missing_results = remote_results.loc[missing_idx]
@@ -130,7 +144,7 @@ class Collection:
         else:
             raise Exception  # Shouldn't reach here
 
-    def local_catalogue(self, **facets: T.Dict[str, T.List[str]]) -> pandas.DataFrame:
+    def local_catalogue(self, **facets: T.List[str]) -> pandas.DataFrame:
         """
         Create a dataframe with local search results
 
@@ -152,7 +166,7 @@ class Collection:
 
         return df.set_index(index)
 
-    def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]) -> pandas.DataFrame:
+    def remote_catalogue(self, **facets: T.List[str]) -> pandas.DataFrame:
         """
         Create a dataframe with remote search results
 
@@ -173,6 +187,7 @@ class Collection:
             )
         )
 
+        # Add an empty path column
         df = pandas.DataFrame.from_records(results)
         df["path"] = None
 
@@ -265,7 +280,7 @@ class Cmip5(Collection):
     def __init__(self):
         super().__init__()
 
-    def remote_catalogue(self, **facets: T.Dict[str, T.List[str]]):
+    def remote_catalogue(self, **facets: T.List[str]):
         """
         Create a dataframe with remote search results
 
@@ -292,3 +307,23 @@ class Cmip5(Collection):
             df = df[df.variable.isin(v)]
 
         return df
+
+
+class Cordex(Collection):
+    name = "cordex"
+    esgf_project = "CORDEX"
+    intake_cat = name
+    facets = {
+        "institute": {},
+        "experiment": {},
+        "ensemble": {},
+        "domain": {},
+        "variable": {},
+        "rcm_version": {},
+        "rcm_name": {},
+        "driving_model": {},
+        "time_frequency": {},
+    }
+
+    def __init__(self):
+        super().__init__()

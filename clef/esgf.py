@@ -55,7 +55,7 @@ def esgf_api(
     return r.json()
 
 
-def esgf_api_results_iter(**kwargs) -> T.List[T.Dict]:
+def esgf_api_results_iter(**kwargs) -> T.Generator[T.Dict, None, None]:
     """
     Return a stream of results from a ESGF API query, automatically handling pagination
     """
