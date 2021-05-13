@@ -1,12 +1,29 @@
-import clef.cli
-from .conftest import *
 from unittest.mock import patch
+
+import clef.cli
+
+from .conftest import *
 
 
 def test_cmip6_remote_search(capsys):
     clef.cli.main(
         "cmip6 --filter remote --activity CMIP --experiment historical "
         "--source ACCESS-CM2 --frequency mon "
+        "--variable tas --member r1i1p1f1".split()
+    )
+
+    out, err = capsys.readouterr()
+
+    assert (
+        out.strip()
+        == "CMIP6.CMIP.CSIRO-ARCCSS.ACCESS-CM2.historical.r1i1p1f1.Amon.tas.gn.v20191108"
+    )
+
+
+def test_cmip6_remote_search_alias(capsys):
+    clef.cli.main(
+        "cmip6 --filter remote --activity CMIP --experiment historical "
+        "--model ACCESS-CM2 --frequency mon "
         "--variable tas --member r1i1p1f1".split()
     )
 

@@ -16,7 +16,6 @@
 
 import argparse
 import logging
-import sys
 
 from . import collection
 
@@ -30,9 +29,8 @@ def main(argv=None):
 
     subp = parser.add_subparsers()
 
-    collection.Cmip6()._setup_subparser(subp)
-    collection.Cmip5()._setup_subparser(subp)
-    collection.Cordex()._setup_subparser(subp)
+    for col in collection.all_collections:
+        col._setup_subparser(subp)
 
     args = parser.parse_args(argv)
 

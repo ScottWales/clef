@@ -15,9 +15,10 @@
 # limitations under the License.
 
 
+from unittest.mock import patch
+
 import clef.collection
 import pandas
-from unittest.mock import patch
 
 
 def test_catalogue_filter():
@@ -128,3 +129,11 @@ def test_check_facets(caplog):
     assert caplog.text.strip().endswith(
         "No CMIP6 source_id named access_cm, close matches ['ACCESS-CM2', 'ACCESS-ESM']"
     )
+
+
+def test_metadata():
+    col = clef.collection.Cmip6()
+
+    meta = col._get_metadata()
+
+    assert "facets" in meta
