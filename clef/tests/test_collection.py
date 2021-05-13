@@ -183,3 +183,23 @@ def test_metadata():
     meta = col._get_metadata()
 
     assert "facets" in meta
+
+
+def test_all_variables_filter():
+    col = clef.collection.Cmip6()
+
+    cat = pandas.DataFrame(
+        {
+            "activity_id": ["a", "a", "a"],
+            "institution_id": ["a", "a", "a"],
+            "source_id": ["a", "a", "b"],
+            "experiment_id": ["a", "a", "a"],
+            "member_id": ["a", "a", "a"],
+            "variable_id": ["a", "b", "a"],
+        }
+    )
+
+    cat_f = col.all_variables_filter(cat, variable_id=["a", "b"])
+
+    assert len(cat_f) == 2
+    assert cat_f.source_id.unique() == ["a"]

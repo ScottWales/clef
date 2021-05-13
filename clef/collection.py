@@ -56,13 +56,17 @@ class Collection(abc.ABC):
         - intake_cat: Intake catalogue name (under intake.cat.nci.esgf)
         - facets: Search facet metadata
 
-    For manual searching, see :meth:`catalogue` to get a pandas.DataFrame of search results
+    For manual searching, see :meth:`catalogue` to get a pandas.DataFrame of search
+    results, including the path to the NCI directory if the experiment is available
+    locally. :meth:`all_variables_filter` can then be used to filter out model runs
+    that don't contain all of the listed variables if needed.
     """
 
     name: str
     esgf_project: str
     intake_cat: str
     facets: T.Dict[str, T.Dict]
+    variable_name: str
 
     def __init__(self):
         pass
@@ -98,6 +102,12 @@ class Collection(abc.ABC):
             default="list",
             help="Output format: first from [path, id] (list), formatted table (facets), ESGF id (id)",
         )
+        parser.add_argument(
+            "--require",
+            choices=["all", "any"],
+            default="all",
+            help="Require all variables to be present (all) or match any variables (any)",
+        )
 
         facets = parser.add_argument_group("esgf search facets")
 
@@ -118,6 +128,9 @@ class Collection(abc.ABC):
         }
 
         cat = self.catalogue(filter=args.filter, **facets)
+
+        if facets[self.variable_name] is not None and args.require == "all":
+            cat = self.all_variables_filter(cat, **facets)
 
         if args.csv is not None:
             cat.to_csv(args.csv)
@@ -219,6 +232,38 @@ class Collection(abc.ABC):
 
         return df.set_index("instance_id")
 
+    def group_runs(self, cat: pandas.DataFrame) -> pandas.core.groupby.DataFrameGroupBy:
+        """
+        Group the catalogue by run
+
+        The grouping strategy is set by the child class, generally the frequency,
+        table and variable facets are excluded
+        """
+        # Exclude a facet from this grouping by setting
+        #   self.facets[F]['exclude_groupby'] = True
+
+        return cat.groupby(
+            [k for k, v in self.facets.items() if not v.get("exclude_groupby", False)]
+        )
+
+    def all_variables_filter(self, cat: pandas.DataFrame, **facets: T.List[str]):
+        """
+        Filter out any model runs that don't have all the listed variables
+        """
+        if self.variable_name not in facets:
+            raise KeyError(f"{self.variable_name} not in arguments")
+
+        facets = self._check_facets(facets)
+        target_vars = set(facets[self.variable_name])
+
+        groups = self.group_runs(cat)
+
+        def match_variables(group: pandas.DataFrame):
+            vars = group[self.variable_name].unique()
+            return target_vars.issubset(vars)
+
+        return groups.filter(match_variables)
+
     def display_results(self, cat: pandas.DataFrame, format: str = "list"):
         """
         Print search results
@@ -277,7 +322,7 @@ class Collection(abc.ABC):
             if isinstance(values, str):
                 values = [values]
 
-            # Expand wildcards
+            # Expand wildcards, check if the values exist
             for v in values:
                 matches = fnmatch.filter(possible_values[k], v)
                 if len(matches) > 0:
@@ -287,6 +332,7 @@ class Collection(abc.ABC):
                     # Not a match, still add to the search to not underconstrain
                     new_facets[k].append(v)
 
+                    # Print possible matches
                     # Normalise the facet names to handle case differences
                     possible_values_norm = {pv.lower(): pv for pv in possible_values[k]}
                     nearest = difflib.get_close_matches(
@@ -313,11 +359,12 @@ class Cmip6(Collection):
         "source_id": {"aliases": ["model"]},
         "experiment_id": {},
         "member_id": {},
-        "frequency": {},
-        "realm": {},
-        "table_id": {},
-        "variable_id": {},
+        "frequency": {"exclude_groupby": True},
+        "realm": {"exclude_groupby": True},
+        "table_id": {"exclude_groupby": True},
+        "variable_id": {"exclude_groupby": True},
     }
+    variable_name = "variable_id"
 
     def __init__(self):
         super().__init__()
@@ -332,11 +379,12 @@ class Cmip5(Collection):
         "model": {},
         "experiment": {},
         "ensemble": {},
-        "time_frequency": {"aliases": ["frequency"]},
-        "realm": {},
-        "cmor_table": {"aliases": ["table"]},
-        "variable": {},
+        "time_frequency": {"aliases": ["frequency"], "exclude_groupby": True},
+        "realm": {"exclude_groupby": True},
+        "cmor_table": {"aliases": ["table"], "exclude_groupby": True},
+        "variable": {"exclude_groupby": True},
     }
+    variable_name = "variable"
 
     def __init__(self):
         super().__init__()
@@ -382,9 +430,10 @@ class Cordex(Collection):
         "rcm_name": {},
         "rcm_version": {},
         "driving_model": {},
-        "time_frequency": {"aliases": ["frequency"]},
-        "variable": {},
+        "time_frequency": {"aliases": ["frequency"], "exclude_groupby": True},
+        "variable": {"exclude_groupby": True},
     }
+    variable_name = "variable"
 
     def __init__(self):
         super().__init__()
