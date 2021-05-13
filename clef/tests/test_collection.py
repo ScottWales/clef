@@ -119,6 +119,24 @@ def test_local_catalogue(mock_cmip6):
     )
 
 
+def test_local_catalogue_wildcard(mock_cmip6):
+
+    cat = mock_cmip6.local_catalogue(
+        activity_id="CMIP",
+        experiment_id="historical",
+        source_id="ACCESS*",
+        frequency="mon",
+        variable_id="tas",
+        member_id="r1i1p1f1",
+    )
+
+    assert len(cat) == 1
+    assert (
+        cat.index.values[0]
+        == "CMIP6.CMIP.CSIRO-ARCCSS.ACCESS-CM2.historical.r1i1p1f1.Amon.tas.gn.v20191108"
+    )
+
+
 def test_catalogue_no_match(mock_cmip6):
 
     cat = mock_cmip6.catalogue(

@@ -16,6 +16,7 @@
 
 import abc
 import difflib
+import fnmatch
 import functools
 import logging
 import lzma
@@ -175,7 +176,7 @@ class Collection(abc.ABC):
             DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
         """
         log.info("Searching local catalogue")
-        self._check_facets(facets)
+        facets = self._check_facets(facets)
 
         cat = intake.cat["nci"]["esgf"][self.intake_cat].search(**facets)
 
@@ -197,7 +198,7 @@ class Collection(abc.ABC):
             DataFrame with columns ['instance_id', **self.facets.keys(), 'path']
         """
         log.info("Searching ESGF catalogue")
-        self._check_facets(facets)
+        facets = self._check_facets(facets)
 
         results = list(
             esgf.esgf_api_results_iter(
@@ -265,13 +266,24 @@ class Collection(abc.ABC):
             raise Exception(f"Invalid facet names {diff_names}")
 
         possible_values = self._get_facet_values()
+        new_facets: T.Dict[str, T.List[str]] = {}
         for k, values in facets.items():
+            new_facets[k] = []
+
             # Ensure values is a list
             if isinstance(values, str):
                 values = [values]
 
+            # Expand wildcards
             for v in values:
-                if v not in possible_values[k]:
+                matches = fnmatch.filter(possible_values[k], v)
+                if len(matches) > 0:
+                    # Add expanded wildcards to the facets
+                    new_facets[k].extend(matches)
+                else:
+                    # Not a match, still add to the search to not underconstrain
+                    new_facets[k].append(v)
+
                     # Normalise the facet names to handle case differences
                     possible_values_norm = {pv.lower(): pv for pv in possible_values[k]}
                     nearest = difflib.get_close_matches(
@@ -284,6 +296,8 @@ class Collection(abc.ABC):
                         v,
                         [possible_values_norm[n] for n in nearest],
                     )
+
+        return new_facets
 
 
 class Cmip6(Collection):
