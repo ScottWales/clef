@@ -94,9 +94,9 @@ class Collection(abc.ABC):
         )
         parser.add_argument(
             "--format",
-            choices=["list", "facets", "stats"],
+            choices=["list", "facets", "id"],
             default="list",
-            help="Output format",
+            help="Output format: first from [path, id] (list), formatted table (facets), ESGF id (id)",
         )
 
         facets = parser.add_argument_group("esgf search facets")
@@ -229,6 +229,9 @@ class Collection(abc.ABC):
                     print(row["path"])
                 else:
                     print(key)
+        if format == "id":
+            for key, row in cat.sort_index().iterrows():
+                print(key)
         elif format == "facets":
             columns = list(self.facets.keys())
             with pandas.option_context(
@@ -310,9 +313,9 @@ class Cmip6(Collection):
         "source_id": {"aliases": ["model"]},
         "experiment_id": {},
         "member_id": {},
-        "table_id": {},
         "frequency": {},
         "realm": {},
+        "table_id": {},
         "variable_id": {},
     }
 
@@ -329,9 +332,9 @@ class Cmip5(Collection):
         "model": {},
         "experiment": {},
         "ensemble": {},
-        "cmor_table": {"aliases": ["table"]},
         "time_frequency": {"aliases": ["frequency"]},
         "realm": {},
+        "cmor_table": {"aliases": ["table"]},
         "variable": {},
     }
 
