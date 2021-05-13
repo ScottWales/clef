@@ -210,6 +210,7 @@ class Collection(abc.ABC):
         if len(results) > 0:
             df = pandas.DataFrame.from_records(results)
         else:
+            log.warning("No matches on ESGF")
             df = pandas.DataFrame(columns=["instance_id", *self.facets.keys()])
 
         # Add an empty path column
