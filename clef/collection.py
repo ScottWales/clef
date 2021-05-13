@@ -92,7 +92,10 @@ class Collection(abc.ABC):
             help="store output in a csv file",
         )
         parser.add_argument(
-            "--stats", action="store_true", help="print a summary of results"
+            "--format",
+            choices=["list", "facets", "stats"],
+            default="list",
+            help="Output format",
         )
 
         facets = parser.add_argument_group("esgf search facets")
@@ -118,10 +121,7 @@ class Collection(abc.ABC):
         if args.csv is not None:
             cat.to_csv(args.csv)
 
-        if args.stats:
-            self.print_stats(cat)
-        else:
-            self.print_results(cat)
+        self.print_results(cat, format=args.format)
 
         if args.request:
             self.request_download(cat)
@@ -224,15 +224,22 @@ class Collection(abc.ABC):
         """
         pass
 
-    def print_results(self, cat: pandas.DataFrame):
+    def print_results(self, cat: pandas.DataFrame, format: str = "list"):
         """
         Print search results
         """
-        for key, row in cat.sort_index().iterrows():
-            if row["path"] is not None:
-                print(row["path"])
-            else:
-                print(key)
+        if format == "list":
+            for key, row in cat.sort_index().iterrows():
+                if row["path"] is not None:
+                    print(row["path"])
+                else:
+                    print(key)
+        if format == "facets":
+            print(
+                cat.sort_values(self.facets.keys()).set_index(self.facets.keys()).index
+            )
+        else:
+            raise NotImplementedError(f"Unknown format {format}")
 
     def _get_facet_values_esgf(self):
         """
