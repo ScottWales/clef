@@ -264,15 +264,17 @@ class Collection(abc.ABC):
 
             for v in values:
                 if v not in possible_values[k]:
+                    # Normalise the facet names to handle case differences
+                    possible_values_norm = {pv.lower(): pv for pv in possible_values[k]}
                     nearest = difflib.get_close_matches(
-                        v.upper(), possible_values[k], cutoff=0.6
+                        v.lower(), possible_values_norm.keys(), cutoff=0.6
                     )
                     log.warning(
                         "No %s %s named %s, close matches %s",
                         self.esgf_project,
                         k,
                         v,
-                        nearest,
+                        [possible_values_norm[n] for n in nearest],
                     )
 
 
