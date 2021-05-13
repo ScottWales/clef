@@ -21,11 +21,14 @@ import functools
 import logging
 import lzma
 import os
+import re
+import sys
 import typing as T
 
 import intake
 import pandas
 import pkg_resources
+import requests
 import yaml
 
 from . import esgf
@@ -132,13 +135,20 @@ class Collection(abc.ABC):
         if facets[self.variable_name] is not None and args.require == "all":
             cat = self.all_variables_filter(cat, **facets)
 
+        self._cli_postprocess(cat, args)
+
+    def _cli_postprocess(self, cat: pandas.DataFrame, args):
+        """
+        Handle output formatting, overridable by child classes
+        """
         if args.csv is not None:
             cat.to_csv(args.csv)
 
         self.display_results(cat, format=args.format)
 
         if args.request:
-            self.request_download(cat)
+            pass
+            # self.request_download(cat)
 
     def catalogue(
         self, *, filter: str = "all", **facets: T.List[str]
@@ -354,9 +364,9 @@ class Cmip6(Collection):
     esgf_project = "CMIP6"
     intake_cat = name
     facets = {
-        "activity_id": {},
         "institution_id": {},
         "source_id": {"aliases": ["model"]},
+        "activity_id": {},
         "experiment_id": {},
         "member_id": {},
         "frequency": {"exclude_groupby": True},
@@ -368,6 +378,54 @@ class Cmip6(Collection):
 
     def __init__(self):
         super().__init__()
+
+    def _setup_subparser(self, subp):
+        parser = super()._setup_subparser(subp)
+
+        parser.add_argument(
+            "--cite",
+            nargs="?",
+            choices=["bibtex", "ris"],
+            const="bibtex",
+            help="Save citation information to 'cmip_citations.txt' in bibtex or ris format",
+        )
+
+        return parser
+
+    def _cli_postprocess(self, cat: pandas.DataFrame, args):
+        super()._cli_postprocess(cat, args)
+
+        if args.cite is not None:
+            self.citations(cat, format=args.cite)
+
+    def citations(
+        self, cat: pandas.DataFrame, format: str = "bibtex", output=sys.stdout
+    ):
+        """
+        Obtain citation information from DKRZ
+        """
+        if format in ["bibtex", "ris"]:
+            for id in self.group_runs(cat).first().index.values:
+                params = {
+                    "input": id,
+                    "exporttype": format,
+                }
+                r = requests.get(
+                    "https://cera-www.dkrz.de/WDCC/ui/cerasearch/cmip6", params=params
+                )
+                r.raise_for_status()
+
+                cite = r.text
+                version = cat.version.loc[id]
+
+                if format == "bibtex":
+                    cite = re.sub(
+                        "(title\s*=\s*{[^}]+)}", f"\1 version {version}}}", cite
+                    )
+                elif format == "ris":
+                    cite = re.sub("T1\s*=.*", f"\0 version {version}", cite)
+
+                output.write(cite)
 
 
 class Cmip5(Collection):
