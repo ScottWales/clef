@@ -1,10 +1,11 @@
-import pytest
+import io
+from unittest.mock import patch
+
+import clef.collection
 import intake
 import intake_esm
-import clef.collection
-from unittest.mock import patch
 import pandas
-import io
+import pytest
 import yaml
 
 requires_nci_intake = pytest.mark.skipif(
