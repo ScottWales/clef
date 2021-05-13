@@ -119,6 +119,20 @@ def test_local_catalogue(mock_cmip6):
     )
 
 
+def test_catalogue_no_match(mock_cmip6):
+
+    cat = mock_cmip6.catalogue(
+        activity_id="CMIP",
+        experiment_id="bad_value",
+        source_id="ACCESS-CM2",
+        frequency="mon",
+        variable_id="tas",
+        member_id="r1i1p1f1",
+    )
+
+    assert len(cat) == 0
+
+
 def test_check_facets(caplog):
     col = clef.collection.Cmip6()
     with patch.object(

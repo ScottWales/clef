@@ -207,8 +207,12 @@ class Collection(abc.ABC):
             )
         )
 
+        if len(results) > 0:
+            df = pandas.DataFrame.from_records(results)
+        else:
+            df = pandas.DataFrame(columns=["instance_id", *self.facets.keys()])
+
         # Add an empty path column
-        df = pandas.DataFrame.from_records(results)
         df["path"] = None
 
         return df.set_index("instance_id")
