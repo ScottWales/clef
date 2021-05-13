@@ -229,7 +229,7 @@ class Collection(abc.ABC):
                     print(row["path"])
                 else:
                     print(key)
-        if format == "id":
+        elif format == "id":
             for key, row in cat.sort_index().iterrows():
                 print(key)
         elif format == "facets":
