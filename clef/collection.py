@@ -121,7 +121,7 @@ class Collection(abc.ABC):
         if args.csv is not None:
             cat.to_csv(args.csv)
 
-        self.print_results(cat, format=args.format)
+        self.display_results(cat, format=args.format)
 
         if args.request:
             self.request_download(cat)
@@ -218,13 +218,7 @@ class Collection(abc.ABC):
 
         return df.set_index("instance_id")
 
-    def print_stats(self, cat: pandas.DataFrame):
-        """
-        Print a summary of results
-        """
-        pass
-
-    def print_results(self, cat: pandas.DataFrame, format: str = "list"):
+    def display_results(self, cat: pandas.DataFrame, format: str = "list"):
         """
         Print search results
         """
@@ -234,10 +228,10 @@ class Collection(abc.ABC):
                     print(row["path"])
                 else:
                     print(key)
-        if format == "facets":
-            print(
-                cat.sort_values(self.facets.keys()).set_index(self.facets.keys()).index
-            )
+        elif format == "facets":
+            columns = list(self.facets.keys())
+            with pandas.set_option("display.max_rows", None, "display.max_cols", None):
+                print(cat.sort_values(columns).set_index(columns)[["path"]])
         else:
             raise NotImplementedError(f"Unknown format {format}")
 
@@ -310,9 +304,6 @@ class Cmip6(Collection):
         super().__init__()
 
 
-cmip6 = Cmip6()
-
-
 class Cmip5(Collection):
     name = "cmip5"
     esgf_project = "CMIP5"
@@ -360,9 +351,6 @@ class Cmip5(Collection):
         return df
 
 
-cmip5 = Cmip5()
-
-
 class Cordex(Collection):
     name = "cordex"
     esgf_project = "CORDEX"
@@ -373,8 +361,8 @@ class Cordex(Collection):
         "ensemble": {},
         "domain": {},
         "variable": {},
-        "rcm_version": {},
         "rcm_name": {},
+        "rcm_version": {},
         "driving_model": {},
         "time_frequency": {"aliases": ["frequency"]},
     }
@@ -383,5 +371,7 @@ class Cordex(Collection):
         super().__init__()
 
 
+cmip6 = Cmip6()
+cmip5 = Cmip5()
 cordex = Cordex()
 all_collections = [cmip6, cmip5, cordex]
