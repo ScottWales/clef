@@ -130,6 +130,13 @@ def test_check_facets(caplog):
         "No CMIP6 source_id named access_cm, close matches ['ACCESS-CM2', 'ACCESS-ESM']"
     )
 
+    col._check_facets({"source_id": ["ACCESS-CM2"]})
+
+    # Nothing added to log
+    assert caplog.text.strip().endswith(
+        "No CMIP6 source_id named access_cm, close matches ['ACCESS-CM2', 'ACCESS-ESM']"
+    )
+
 
 def test_metadata():
     col = clef.collection.Cmip6()

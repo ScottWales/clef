@@ -244,7 +244,7 @@ class Collection(abc.ABC):
         return meta[self.name]
 
     def _get_facet_values(self):
-        return {k: [] for k in self.facets.keys()}
+        return self._get_metadata()["facets"]
 
     def _check_facets(self, facets: T.Dict[str, T.List[str]]):
         """
