@@ -230,7 +230,9 @@ class Collection(abc.ABC):
                     print(key)
         elif format == "facets":
             columns = list(self.facets.keys())
-            with pandas.set_option("display.max_rows", None, "display.max_cols", None):
+            with pandas.set_option(
+                "display.max_rows", None, "display.max_columns", None
+            ):
                 print(cat.sort_values(columns).set_index(columns)[["path"]])
         else:
             raise NotImplementedError(f"Unknown format {format}")
