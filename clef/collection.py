@@ -292,8 +292,8 @@ class Cmip6(Collection):
     intake_cat = name
     facets = {
         "activity_id": {},
-        "source_id": {"aliases": ["model"]},
         "institution_id": {},
+        "source_id": {"aliases": ["model"]},
         "experiment_id": {},
         "member_id": {},
         "table_id": {},
@@ -362,11 +362,11 @@ class Cordex(Collection):
         "experiment": {},
         "ensemble": {},
         "domain": {},
-        "variable": {},
         "rcm_name": {},
         "rcm_version": {},
         "driving_model": {},
         "time_frequency": {"aliases": ["frequency"]},
+        "variable": {},
     }
 
     def __init__(self):
