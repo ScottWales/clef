@@ -16,7 +16,7 @@
 
 
 from unittest.mock import patch
-
+import io
 import clef.collection
 import pandas
 
@@ -201,5 +201,54 @@ def test_all_variables_filter():
 
     cat_f = col.all_variables_filter(cat, variable_id=["a", "b"])
 
+    # Third result (source 'b') should be dropped, as it only has variable 'a'
     assert len(cat_f) == 2
     assert cat_f.source_id.unique() == ["a"]
+
+
+def test_cmip6_citations(mock_cmip6):
+    col = clef.collection.Cmip6()
+
+    cat = col.local_catalogue(source_id="ACCESS-CM2")
+
+    cites = col.citations(cat)
+    cite = list(cites.values())[0]
+    cite_key = list(cites.keys())[0]
+    assert cite_key == ("CSIRO-ARCCSS", "ACCESS-CM2", "CMIP", "historical", "r1i1p1f1")
+
+    # Output in bibtex format
+    assert cite.startswith("@misc{https://doi.org/10.22033/ESGF/CMIP6.4271")
+
+    # Version output correctly
+    assert (
+        "title = {CSIRO-ARCCSS ACCESS-CM2 model output prepared for CMIP6 CMIP historical version v20191108},"
+        in cite
+    )
+
+
+def test_cmip6_errata(mock_cmip6):
+    col = clef.collection.Cmip6()
+
+    # General check
+    cat = col.local_catalogue(source_id="ACCESS-CM2")
+    e = col.errata(cat)
+
+    assert "hasErrata" in e.columns
+    assert "errataIds" in e.columns
+
+    # Dataset with errata
+    cat = pandas.DataFrame(
+        [None, None, None],
+        index=[
+            "CMIP6.CMIP.IPSL.IPSL-CM6A-LR.1pctCO2.r1i1p1f1.Omon.si.gn.v20180727",
+            "CMIP6.CMIP.IPSL.IPSL-CM6A-LR.1pctCO2.r1i1p1f1.Omon.si.gn.v20180717",
+            "CMIP6.CMIP.IPSL.IPSL-CM6A-LR.1pctCO2.r1i1p1f1.Omon.si.gn.v20190305",
+        ],
+    )
+    e = col.errata(cat)
+
+    assert "info_url" in e.columns
+
+    e = col.errata(cat, detailed=True)
+
+    assert "title" in e.columns

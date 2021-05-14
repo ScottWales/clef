@@ -23,7 +23,10 @@ import lzma
 import os
 import re
 import sys
+import argparse
 import typing as T
+import ast
+import numpy
 
 import intake
 import pandas
@@ -52,7 +55,8 @@ class Collection(abc.ABC):
     """
     Common routines for Clef collections
 
-    Sets up search for both the ESGF and local intake catalogues. Subclasses use these functions to set up the search.
+    Sets up search for both the ESGF and local intake catalogues. Subclasses use
+    these functions to set up the search.
 
     Most settings are automatically generated from the attributes of the subclass:
         - esgf_project: ESGF web search project name
@@ -85,7 +89,9 @@ class Collection(abc.ABC):
             "--filter",
             choices=["local", "remote", "missing", "all"],
             default="all",
-            help="filter the output to show only files at nci (local), all files on esgf (remote), files on esgf but not nci (missing), or both files at nci and missing files (all)",
+            help="filter the output to show only files at nci (local), all files "
+            "on esgf (remote), files on esgf but not nci (missing), or both "
+            "files at nci and missing files (all)",
         )
         parser.add_argument(
             "--request",
@@ -103,13 +109,15 @@ class Collection(abc.ABC):
             "--format",
             choices=["list", "facets", "id"],
             default="list",
-            help="Output format: first from [path, id] (list), formatted table (facets), ESGF id (id)",
+            help="Output format: first from [path, id] (list), formatted table "
+            "(facets), ESGF id (id)",
         )
         parser.add_argument(
             "--require",
             choices=["all", "any"],
             default="all",
-            help="Require all variables to be present (all) or match any variables (any)",
+            help="Require all variables to be present (all) or match any variables "
+            "(any)",
         )
 
         facets = parser.add_argument_group("esgf search facets")
@@ -120,7 +128,7 @@ class Collection(abc.ABC):
 
         return parser
 
-    def _cli(self, args):
+    def _cli(self, args) -> None:
         """
         Run the CLI command
         """
@@ -137,7 +145,7 @@ class Collection(abc.ABC):
 
         self._cli_postprocess(cat, args)
 
-    def _cli_postprocess(self, cat: pandas.DataFrame, args):
+    def _cli_postprocess(self, cat: pandas.DataFrame, args) -> None:
         """
         Handle output formatting, overridable by child classes
         """
@@ -256,7 +264,9 @@ class Collection(abc.ABC):
             [k for k, v in self.facets.items() if not v.get("exclude_groupby", False)]
         )
 
-    def all_variables_filter(self, cat: pandas.DataFrame, **facets: T.List[str]):
+    def all_variables_filter(
+        self, cat: pandas.DataFrame, **facets: T.List[str]
+    ) -> pandas.DataFrame:
         """
         Filter out any model runs that don't have all the listed variables
         """
@@ -274,7 +284,7 @@ class Collection(abc.ABC):
 
         return groups.filter(match_variables)
 
-    def display_results(self, cat: pandas.DataFrame, format: str = "list"):
+    def display_results(self, cat: pandas.DataFrame, format: str = "list") -> None:
         """
         Print search results
         """
@@ -296,7 +306,7 @@ class Collection(abc.ABC):
         else:
             raise NotImplementedError(f"Unknown format {format}")
 
-    def _get_facet_values_esgf(self):
+    def _get_facet_values_esgf(self) -> T.Dict:
         """
         Get the facet values from ESGF
         """
@@ -306,14 +316,16 @@ class Collection(abc.ABC):
 
         return {k: v[::2] for k, v in query["facet_counts"]["facet_fields"].items()}
 
-    def _get_metadata(self):
+    def _get_metadata(self) -> T.Dict:
         meta = _get_metadata()
         return meta[self.name]
 
     def _get_facet_values(self):
         return self._get_metadata()["facets"]
 
-    def _check_facets(self, facets: T.Dict[str, T.List[str]]):
+    def _check_facets(
+        self, facets: T.Dict[str, T.List[str]]
+    ) -> T.Dict[str, T.List[str]]:
         """
         Check the given facet values match possible values on ESGF
 
@@ -383,31 +395,68 @@ class Cmip6(Collection):
         parser = super()._setup_subparser(subp)
 
         parser.add_argument(
-            "--cite",
+            "--cite-format",
             nargs="?",
             choices=["bibtex", "ris"],
-            const="bibtex",
-            help="Save citation information to 'cmip_citations.txt' in bibtex or ris format",
+            default="bibtex",
+            help="Save citation information in bibtex or ris format",
+        )
+        parser.add_argument(
+            "--cite",
+            nargs="?",
+            const="cmip_citations.txt",
+            help="Save citation information to file (default cmip_citations.txt)",
+            type=argparse.FileType("w"),
+        )
+        parser.add_argument(
+            "--errata",
+            nargs="?",
+            choices=["short", "detailed"],
+            const="short",
+            help="Show errata records",
         )
 
         return parser
 
     def _cli_postprocess(self, cat: pandas.DataFrame, args):
+        if args.errata is not None:
+            args.format = "errata:" + args.errata
+
         super()._cli_postprocess(cat, args)
 
         if args.cite is not None:
-            self.citations(cat, format=args.cite)
+            cites = self.citations(cat, format=args.cite)
+            for c in cites:
+                args.cite.write(c)
+
+    def display_results(self, cat: pandas.DataFrame, format: str = "list") -> None:
+        """
+        Print search results
+        """
+        if format == "errata:short":
+            e = self.errata(cat).sort_index()
+            for id, row in e[e["hasErrata"] == True]:
+                print(id, row["info_url"])
+        elif format == "errata:detailed":
+            e = self.errata(cat, detailed=True).sort_index()
+            for id, row in e[e["hasErrata"] == True]:
+                print(id, row["severity"], row["title"])
+        else:
+            super().display_results(cat, format)
 
     def citations(
         self, cat: pandas.DataFrame, format: str = "bibtex", output=sys.stdout
-    ):
+    ) -> T.Dict[T.Tuple[str], str]:
         """
-        Obtain citation information from DKRZ
+        Obtain citation information from DKRZ for all catalogue members
         """
+        cat["instance_id"] = cat.index
+        cites = {}
+
         if format in ["bibtex", "ris"]:
-            for id in self.group_runs(cat).first().index.values:
+            for id, row in self.group_runs(cat).first().iterrows():
                 params = {
-                    "input": id,
+                    "input": row.instance_id,
                     "exporttype": format,
                 }
                 r = requests.get(
@@ -416,16 +465,80 @@ class Cmip6(Collection):
                 r.raise_for_status()
 
                 cite = r.text
-                version = cat.version.loc[id]
+                version = row.version
 
                 if format == "bibtex":
                     cite = re.sub(
-                        "(title\s*=\s*{[^}]+)}", f"\1 version {version}}}", cite
+                        r"(title\s*=\s*{[^}]+)}", f"\\1 version {version}}}", cite
                     )
                 elif format == "ris":
-                    cite = re.sub("T1\s*=.*", f"\0 version {version}", cite)
+                    cite = re.sub(r"T1\s*=.*", f"\\0 version {version}", cite)
 
-                output.write(cite)
+                cites[id] = cite
+
+        return cites
+
+    def errata(self, cat: pandas.DataFrame, detailed: bool = False) -> pandas.DataFrame:
+        """
+        Obtain errata information from es-doc for all catalogue members
+
+        Args:
+            cat: Catalogue, indexed by ESGF instance_id
+            detailed: If true, retrieve the errata details as well (note this may
+                take some time for lots of records)
+
+        Returns:
+            pandas.DataFrame indexed by ESGF instance_id
+
+        If detailed is False, columns will be:
+            - hasErrata: Errata defined for this record
+            - errataId: ES-Doc errata ID
+            - info_url: Link to record on ES-Doc
+
+        If detailed is true, additional columns will be:
+            - severity
+            - title
+            - description
+            - createdDate
+            - closedDate
+        """
+        ids = cat.index.values
+
+        params = {"datasets": ",".join(ids)}
+        r = requests.get("https://errata.es-doc.org/1/resolve/simple-pid", params)
+        r.raise_for_status()
+
+        j = r.json()
+        for k, v in j.items():
+            # ErrataIds comes as a string, rather than a json list
+            # Decode with the safe ast.literal_eval
+            if isinstance(v["errataIds"], str):
+                v["errataIds"] = ast.literal_eval(v["errataIds"])
+
+        df = pandas.DataFrame.from_dict(j, orient="index")
+        df["tracking_id"] = df.index
+        df["instance_id"] = df["drs"] + ".v" + df["version"]
+        df = df.explode("errataIds")
+
+        errataIds = df["errataIds"].dropna().unique()
+        for id in errataIds:
+            df.loc[df["errataIds"] == id, "info_url"] = (
+                "https://errata.es-doc.org/static/view.html?uid=" + id
+            )
+
+            if detailed:
+                params = {"uid": id}
+                r = requests.get("https://errata.es-doc.org/1/issue/retrieve", params)
+                r.raise_for_status()
+
+                j = r.json()
+                cols = ["severity", "title", "description", "createdDate", "closedDate"]
+                for c in cols:
+                    df.loc[df["errataIds"] == id, c] = j["issue"][c]
+
+        print(errataIds)
+
+        return df.set_index("instance_id")
 
 
 class Cmip5(Collection):
